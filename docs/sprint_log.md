@@ -52,7 +52,7 @@
 |-----|------|---------|
 | `4dedd7b` | 2026-05-17 | PMS specs, PostgreSQL schema, seed data |
 | `6cf1f2a` | 2026-05-20 | NestJS skeleton + agent definitions (message: `feat: scaffold NestJS project with basic schema and seed`) |
-| `a1ccbec` | 2026-05-20 | Sprint log + Property Room Grid API contract v1.0 |
+| `c23fd08` | 2026-05-20 | Sprint log + Property Room Grid API contract v1.0 |
 
 ---
 
