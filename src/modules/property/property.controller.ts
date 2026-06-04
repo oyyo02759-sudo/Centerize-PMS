@@ -10,13 +10,13 @@ export class PropertyController {
     return this.propertyService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.propertyService.findOne(id);
-  }
-
   @Get(':id/grid')
   getGridMatrix(@Param('id', ParseUUIDPipe) id: string) {
     return this.propertyService.getGridMatrix(id);
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.propertyService.findOne(id);
   }
 }

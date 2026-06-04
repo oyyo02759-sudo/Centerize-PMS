@@ -7,6 +7,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { PropertyService } from '../property/property.service';
 
 @WebSocketGateway({
   namespace: '/grid',
@@ -18,6 +19,8 @@ export class GridGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(GridGateway.name);
 
+  constructor(private readonly propertyService: PropertyService) {}
+
   handleConnection(client: Socket) {
     this.logger.debug(`Client connected: ${client.id}`);
   }
@@ -27,12 +30,24 @@ export class GridGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('property.subscribe')
-  handleSubscribe(
+  async handleSubscribe(
     client: Socket,
     payload: { propertyId: string },
-  ): { channel: string } {
+  ): Promise<{ channel: string }> {
     const channel = `property:${payload.propertyId}:grid`;
-    void client.join(channel);
+    await client.join(channel);
+
+    try {
+      const rooms = await this.propertyService.getGridRoomCells(
+        payload.propertyId,
+      );
+      this.emitGridSnapshot(payload.propertyId, rooms);
+    } catch (error) {
+      this.logger.warn(
+        `Grid snapshot skipped for property ${payload.propertyId}: ${String(error)}`,
+      );
+    }
+
     return { channel };
   }
 
