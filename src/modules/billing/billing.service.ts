@@ -1,7 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Invoice, InvoiceLine } from '@prisma/client';
+import { Invoice, InvoiceLine, Prisma } from '@prisma/client';
 import { decimalToNumber, jsonRecord } from '../../common/serialize';
 import { PrismaService } from '../../prisma/prisma.service';
+
+export interface MeterReading {
+  utilityType: 'electricity' | 'water';
+  previousReading: number;
+  currentReading: number;
+  ratePerUnit: number;
+}
+
+export interface GenerateInvoiceInput {
+  leaseId: string;
+  billingPeriod: string;
+  dueDate: string;
+  meterReadings: MeterReading[];
+}
 
 export type PaymentProvider = 'omise' | 'opn';
 
@@ -135,6 +149,104 @@ export class BillingService {
       qrPayload,
       idempotencyKey,
     };
+  }
+
+  async generateInvoice(input: GenerateInvoiceInput): Promise<InvoiceDetailDto> {
+    const { leaseId, billingPeriod, dueDate, meterReadings } = input;
+
+    const lease = await this.prisma.lease.findFirst({
+      where: { id: leaseId, deletedAt: null, status: { in: ['ACTIVE', 'NOTICE_GIVEN'] } },
+    });
+    if (!lease) {
+      throw new NotFoundException(`Active lease ${leaseId} not found`);
+    }
+
+    const invoiceNumber = `INV-${billingPeriod}-${lease.id.slice(0, 8).toUpperCase()}`;
+
+    const UTILITY_LABEL: Record<string, string> = {
+      electricity: 'ค่าไฟฟ้า',
+      water: 'ค่าน้ำประปา',
+    };
+
+    type RawLine = {
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      lineTotal: number;
+      metadata: Record<string, unknown>;
+    };
+
+    const lines: RawLine[] = [];
+
+    const rentAmount = decimalToNumber(lease.monthlyRent);
+    lines.push({
+      description: 'ค่าเช่า',
+      quantity: 1,
+      unitPrice: rentAmount,
+      lineTotal: rentAmount,
+      metadata: { line_type: 'rent', billing_period: billingPeriod },
+    });
+
+    for (const reading of meterReadings) {
+      const units = reading.currentReading - reading.previousReading;
+      const lineTotal = units * reading.ratePerUnit;
+      lines.push({
+        description: UTILITY_LABEL[reading.utilityType] ?? reading.utilityType,
+        quantity: units,
+        unitPrice: reading.ratePerUnit,
+        lineTotal,
+        metadata: {
+          line_type: 'utility',
+          utility_type: reading.utilityType,
+          previous_reading: reading.previousReading,
+          current_reading: reading.currentReading,
+          units,
+          rate_per_unit: reading.ratePerUnit,
+        },
+      });
+    }
+
+    const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
+
+    const invoice = await this.prisma.$transaction(async (tx) => {
+      const inv = await tx.invoice.create({
+        data: {
+          organizationId: lease.organizationId,
+          propertyId: lease.propertyId,
+          leaseId: lease.id,
+          roomId: lease.roomId,
+          tenantId: lease.primaryTenantId,
+          invoiceNumber,
+          status: 'DRAFT',
+          currency: lease.currency,
+          subtotalAmount: subtotal,
+          taxAmount: 0,
+          totalAmount: subtotal,
+          amountPaid: 0,
+          dueDate: new Date(dueDate),
+          metadata: { billing_period: billingPeriod },
+        },
+      });
+
+      await tx.invoiceLine.createMany({
+        data: lines.map((line, i) => ({
+          invoiceId: inv.id,
+          lineNumber: i + 1,
+          description: line.description,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          lineTotal: line.lineTotal,
+          metadata: line.metadata as Prisma.InputJsonObject,
+        })),
+      });
+
+      return tx.invoice.findFirstOrThrow({
+        where: { id: inv.id },
+        include: { lines: { orderBy: { lineNumber: 'asc' } } },
+      });
+    });
+
+    return this.toInvoiceDetail(invoice);
   }
 
   async handleProviderWebhook(

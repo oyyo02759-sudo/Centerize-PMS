@@ -30,6 +30,7 @@ export interface GridRoomCell {
   gridPositionRow: number;
   gridPositionCol: number;
   status: RoomStatus;
+  statusLabel: string;
   isActiveCell: boolean;
   label: string | null;
   activeLeaseId: string | null;

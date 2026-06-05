@@ -11,6 +11,14 @@ import {
 
 const ACTIVE_LEASE_STATUSES = ['ACTIVE', 'NOTICE_GIVEN'] as const;
 
+const ROOM_STATUS_LABEL: Record<RoomStatus, string> = {
+  VACANT: 'ห้องว่าง',
+  OCCUPIED: 'มีผู้เช่า',
+  RESERVED: 'จอง',
+  MAINTENANCE: 'ซ่อมบำรุง',
+  OUT_OF_SERVICE: 'ปิดใช้งาน',
+};
+
 export function toPropertySummary(property: Property): PropertySummary {
   return {
     id: property.id,
@@ -62,6 +70,7 @@ export function toGridRoomCell(
     gridPositionRow: room.gridPositionRow,
     gridPositionCol: room.gridPositionCol,
     status: room.status as RoomStatus,
+    statusLabel: ROOM_STATUS_LABEL[room.status as RoomStatus],
     isActiveCell: room.isActiveCell,
     label: room.label,
     activeLeaseId: activeLease?.id ?? null,
