@@ -1,156 +1,36 @@
-# Centerize PMS API
+# Centerize-PMS
+A high-reliability, multi-property management system (PMS) featuring a dynamic room grid matrix, real-time WebSocket state propagation, and automated Opn/Omise PromptPay QR code webhook reconciliation. Built with NestJS, PostgreSQL, and Next.js.
 
-Multi-property management API (NestJS + PostgreSQL + Prisma). Phase 1 focuses on the **room grid matrix**, billing reads, and WebSocket grid snapshots.
+# Centerize PMS (Property Management System)
 
-## Prerequisites
+Centerize PMS is a production-grade, highly scalable **Multi-Property Management System** designed to streamline operations, optimize room grids, and automate financial workflows across multiple residential or commercial buildings. Inspired by modern PMS workflows, the system is engineered from the ground up to eliminate structural rigidity and manual billing errors.
 
-- **Node.js** 20+ and **npm** 10+
-- **Docker Desktop** (or Docker Engine + Compose v2) for local PostgreSQL
+## 🚀 Key Features
 
-## One-command setup (all README steps)
+* **100% Dynamic Room Grid Matrix:** No hard-coded layouts. Property layouts are entirely data-driven (configured via `grid_rows` and `grid_columns`), allowing the frontend to dynamically render unequal room/floor matrices for unlimited properties (e.g., Property A 2×7 grid, Property B 2×4 grid).
+* **Real-Time State Propagation:** Powered by WebSockets (Socket.io/NestJS) to broadcast instantaneous room and lease lifecycle state shifts directly to the staff dashboard.
+* **Automated Payment Reconciliation:** Integrated with Opn Payments (Omise) to generate dynamic PromptPay QR codes. Includes a strict, 10-step asynchronous, idempotent webhook processing pipeline to prevent duplicate transactions (double-charging) and automate invoice settlement.
+* **Strict State Machine Constraints:** Business logic is locked at both the application and database levels (PostgreSQL Enums & Triggers), ensuring completely valid state transitions for Rooms, Leases, Invoices, Payments, and Maintenance.
+* **Centralized Audit Logging:** Enterprise-ready Role-Based Access Control (RBAC) paired with automated logging capturing exact metadata, timestamps, and target domains for every state mutation.
 
-```bash
-chmod +x scripts/setup-and-verify.sh
-npm run setup
-```
+## 🛠️ Technical Stack
 
-Runs install → `.env` → database → Prisma generate → build → API smoke tests.
+* **Backend:** NestJS (TypeScript), TypeORM / Prisma
+* **Database:** PostgreSQL (with custom ENUMs, triggers, and partial unique indexes)
+* **Real-time:** Socket.io (WebSockets)
+* **Payment Gateway:** Opn / Omise API (PromptPay Dynamic QR & Webhooks)
+* **Frontend:** React / Next.js (Dynamic Grid Architecture)
 
-## Quick start
+## 📂 Project Structure Baseline
 
-### 1. Install dependencies
-
-```bash
-npm install
-```
-
-Runs `prisma generate` automatically via `postinstall`.
-
-### 2. Configure environment
-
-```bash
-cp .env.example .env
-```
-
-Default values match `docker-compose.yml` (Postgres on `localhost:5432`, database `centerize_pms`).
-
-### 3. Start PostgreSQL
-
-```bash
-npm run db:up
-```
-
-Uses **Docker Compose** when `docker` is installed; otherwise starts **embedded Postgres** (no Docker required).
-
-Docker-only alternative:
-
-```bash
-npm run db:up:docker
-```
-
-On first start, init scripts apply:
-
-- `schema.sql` — DDL, enums, triggers
-- `seed.sql` — demo org, properties A/B, rooms, leases, invoices
-
-Wait until the container is healthy:
-
-```bash
-docker compose ps
-```
-
-### 4. Generate Prisma Client (if needed)
-
-```bash
-npm run prisma:generate
-```
-
-### 5. Build and run the API
-
-```bash
-npm run build
-npm run start:dev
-```
-
-API listens on **http://localhost:3000** (override with `PORT` in `.env`).
-
-### 6. Verify the stack
-
-```bash
-# Database + API health
-curl -s http://localhost:3000/health | jq .
-
-# Property list (seed: PROPERTY_A, PROPERTY_B)
-curl -s http://localhost:3000/properties | jq .
-
-# Grid matrix — Property A
-curl -s http://localhost:3000/properties/b0000000-0000-4000-8000-000000000001/grid | jq .
-
-# Overdue invoice — Property A Room 4
-curl -s http://localhost:3000/billing/invoices/10000001-0000-4000-8000-000000000003 | jq .
-```
-
-Expected health response:
-
-```json
-{
-  "status": "ok",
-  "database": "connected",
-  "propertyCount": 2
-}
-```
-
-## npm scripts
-
-| Script | Description |
-|--------|-------------|
-| `npm run db:up` | Start Postgres in Docker |
-| `npm run db:down` | Stop Postgres |
-| `npm run db:reset` | Destroy volume and re-apply schema + seed |
-| `npm run db:logs` | Follow Postgres logs |
-| `npm run prisma:generate` | Regenerate `@prisma/client` |
-| `npm run prisma:studio` | Open Prisma Studio UI |
-| `npm run start:dev` | NestJS watch mode |
-| `npm run build` | Production build |
-| `npm run lint` | ESLint |
-| `npm run test` | Jest unit tests |
-
-## WebSocket (grid)
-
-- Namespace: `http://localhost:3000/grid`
-- Subscribe: emit `property.subscribe` with `{ "propertyId": "<uuid>" }`
-- Server replies with ack `{ "channel": "property:<id>:grid" }` and pushes `grid.snapshot`
-
-## Seed IDs (development)
-
-| Resource | UUID |
-|----------|------|
-| Organization | `a0000000-0000-4000-8000-000000000001` |
-| Property A | `b0000000-0000-4000-8000-000000000001` |
-| Property B | `b0000000-0000-4000-8000-000000000002` |
-| Overdue invoice (Room 4) | `10000001-0000-4000-8000-000000000003` |
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---------|-----|
-| `database: disconnected` on `/health` | Run `npm run db:up`; check `docker compose ps` is healthy |
-| Port 5432 in use | Change `DB_PORT` in `.env` and `ports` in `docker-compose.yml` |
-| Empty DB after first run | Init scripts only run on empty volume — use `npm run db:reset` |
-| Prisma client out of date | `npm run prisma:generate` |
-
-## Project layout
-
-```
-schema.sql          # PostgreSQL DDL (applied by Docker init)
-seed.sql            # Development seed data
-prisma/schema.prisma
-src/modules/property/   # GET /properties, /grid
-src/modules/billing/    # GET /billing/invoices/:id
-src/modules/websocket/  # Socket.io /grid
-docs/api/               # API contracts
-```
-
-## API contract
-
-See [`docs/api/PROPERTY_ROOM_GRID_API_CONTRACT.md`](docs/api/PROPERTY_ROOM_GRID_API_CONTRACT.md).
+```text
+├── centerize_pms_agents/   # Specialized AI Agent specifications (Choely, Yo, etc.)
+├── docs/                   # System briefs, state mapping, and sprint logs
+├── src/                    # NestJS Core Application Workspace
+│   └── modules/
+│       ├── property/       # Dynamic grid layout engine
+│       ├── billing/        # Invoice processing & Omise Adapter
+│       ├── webhook/        # Idempotent webhook processor
+│       └── websocket/      # Real-time state propagation gateway
+├── schema.sql              # Production-ready PostgreSQL DDL & Constraints
+└── seed.sql                # Deterministic UUID reference test data
