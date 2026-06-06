@@ -7,3 +7,13 @@ dist/
 coverage/
 *.log
 .DS_Store
+# Added by code-review-graph
+.code-review-graph/
+
+# Frontend build artifacts (compiled from TS source — keep out of git & graph)
+frontend/src/**/*.js
+frontend/src/**/*.js.map
+frontend/src/**/*.d.ts
+frontend/.next/
+frontend/next-env.d.ts
+*.tsbuildinfo
