@@ -10,6 +10,10 @@ coverage/
 # Added by code-review-graph
 .code-review-graph/
 
+# Machine-specific code-review-graph configs (regenerate via `code-review-graph install`)
+.mcp.json
+.claude/settings.json
+
 # Frontend build artifacts (compiled from TS source — keep out of git & graph)
 frontend/src/**/*.js
 frontend/src/**/*.js.map
